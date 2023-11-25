@@ -13,6 +13,9 @@ logger = logging.getLogger(__name__.rsplit(".", maxsplit=1)[-1])
 
 
 def add_phonetics(df):
+    if "Phonetics" not in df.columns:
+        return df
+
     if os.uname().sysname == 'Darwin':
         EspeakWrapper.set_library(Path("/opt/local/bin/espeak")) # macports version of espeak
 
@@ -35,13 +38,16 @@ def add_phonetics(df):
 def add_images(df, img_dir, force_replace=False):
     #TODO: add option for dalle image creation
     """Download images, add references to Anki card, and create a list of media file paths"""
+    if "Image" not in df.columns:
+        return df, []
+
     vocab = df.iloc[:,0]
     for word in vocab:
-        bing = BingImageSearch(query=word, output_dir=img_dir, languages=["fr"], img_filter="transparent", force_replace=force_replace)
+        bing = BingImageSearch(query=word, output_dir=img_dir, languages=["fr"], force_replace=force_replace)
         bing.run()
     df.Image = vocab.apply(lambda x: reference_str(x, media="img"))
-    media_files = vocab.apply(lambda x: data_str(x, media="img")).to_list()
-    media_files = [str(img_dir / Path(x)) for x in media_files]
+    media_files = [str(img_dir / Path(data_str(word, media="img"))) for word in vocab]
+    
     count = 0
     for media_file in media_files:
         if Path(media_file).exists():

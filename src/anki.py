@@ -28,14 +28,14 @@ class MyNote(genanki.Note):
     def guid(self):
         return genanki.guid_for(self.fields[0].strip(' ".').lower())
 
-def read_file(df_file):
+def read_file(df_file: str | Path) -> pd.DataFrame:
+    df_file = Path(df_file)
     encodings = ['utf-8', 'iso-8859-1', 'windows-1252']
     for encoding in encodings:
         try:
-            # Read the file using pandas
-            df = pd.read_csv(df_file, encoding=encoding)
-            # Return the DataFrame if it's not empty
+            df = pd.read_csv(df_file, sep=';', encoding=encoding)
             if not df.empty:
+                df.attrs['name'] = df_file.name.rsplit(".", maxsplit=1)[0]
                 return df.fillna('')
         except UnicodeDecodeError:
             continue
@@ -44,19 +44,22 @@ def read_file(df_file):
     raise ValueError(f"Could not read the file {df_file} with any of the provided encodings.")
 
 
-def make_deck(deck_name):
+def make_deck(df):
+    deck_name = df.attrs['name']
     deck_id = generate_unique_id(deck_name + str(time.time()))
     return genanki.Deck(
         deck_id,
         deck_name
     )
 
-def make_model(deck_name, fields, style: str | Path = ''):
+def make_model(df, style: str | Path = '', add_reverse: bool = True):
     style = Path(style)
     if style.is_file():
         with open(style, 'r') as f:
             style = f.read()
 
+    deck_name = df.attrs['name']
+    fields = df.columns
     model_id = generate_unique_id(deck_name)
     fields = [{'name': field} for field in fields]
     templates = [
@@ -71,6 +74,10 @@ def make_model(deck_name, fields, style: str | Path = ''):
             'afmt': '{{FrontSide}} <hr> {{Front}}{{Audio}} <hr> {{Extra}} <hr> {{Image}} <hr> {{More}}',
         },
     ]
+
+    if not add_reverse:
+        templates = [templates[0]]
+
     return genanki.Model(
         model_id,
         name="Basic (opt. reversed)",
@@ -101,12 +108,12 @@ def make_note(deck, model, df):
 
     return successful_cards, total_rows
 
-def make_package(deck, media_files: list | None = None, output_dir: str | Path = ''):
-    output_dir = Path(output_dir)
+def make_package(deck, media_files: list | None = None, apkg_file: str | Path = ''):
+    apkg_file = Path(apkg_file)
     my_package = genanki.Package(deck)
     if media_files:
         my_package.media_files = media_files
-    my_package.write_to_file(output_dir / f"{deck.name}.apkg")
+    my_package.write_to_file(apkg_file)
 
 
 @dataclasses.dataclass(frozen=True)
