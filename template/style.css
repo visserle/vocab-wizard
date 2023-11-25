@@ -1,0 +1,70 @@
+.card {
+ margin: 0 auto;
+ max-width: 800px;
+ margin-top: 20px;
+ font-family: arial;
+ font-size: 20px;
+ text-align: center;
+ background-color: lightgray;
+ color: black;
+}
+
+.replay-button svg {
+  width: 25px;
+  height: 25px;
+}
+.replay-button svg circle {
+  stroke: black;
+  fill: transparent;
+  stroke-width: 3px;
+}
+
+.replay-button svg path {
+  stroke: black;
+  fill: black;
+}
+
+.nightMode .replay-button svg circle {
+ stroke: white;
+}
+.nightMode .replay-button svg path {
+ stroke: white;
+ fill: white;
+}
+
+.more {
+    padding: 6px 40px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    border-radius: 6px;
+    background-color: white; 
+    color: black;
+    border: 1px solid black;
+    transition-duration: 0.3s;
+}
+
+.more:hover {
+    background-color: transparent;
+    border: 1px solid transparent;
+    color: black;
+}
+
+.nightMode .more:hover {
+    color: white;
+}
+
+#more_back {
+    all: initial;
+    * { all: unset; }
+    margin-top: 7px;
+    padding-top: 7px;
+    color: inherit;
+    font-family: inherit;
+    font-size: inherit;
+    text-align: center;
+}
+
+.mobile .night_mode #more_back {
+    color: white;
+}
