@@ -9,12 +9,6 @@ def configure_logging(stream_level=logging.INFO, ignore_libs=None):
     - stream_level: The logging level for the stream handler.
     - ignore_libs: A list of library names whose logs should be ignored.
     """
-    # Function to create a filter for ignoring logs from specified libraries
-    def create_ignore_filter(ignored_libs):
-        def ignore_logs(record):
-            return not any(record.name.startswith(lib) for lib in ignored_libs)
-        return ignore_logs
-
     # Clear any previously added handlers from the root logger
     logging.getLogger().handlers = []
 
@@ -24,6 +18,12 @@ def configure_logging(stream_level=logging.INFO, ignore_libs=None):
     stream_handler.setLevel(stream_level)
     stream_handler.setFormatter(stream_formatter)
 
+    # Function to create a filter for ignoring logs from specified libraries
+    def create_ignore_filter(ignored_libs):
+        def ignore_logs(record):
+            return not any(record.name.startswith(lib) for lib in ignored_libs)
+        return ignore_logs
+    
     # Apply ignore filter if ignore_libs is provided
     if ignore_libs:
         ignore_filter = create_ignore_filter(ignore_libs)

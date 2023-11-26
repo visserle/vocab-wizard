@@ -11,10 +11,12 @@ import pathlib
 import sqlite3
 import tempfile
 import zipfile
+import logging
 
 import pandas as pd
 import genanki
 
+logger = logging.getLogger(__name__.rsplit(".", maxsplit=1)[-1])
 
 def generate_unique_id(string):
     hash_object = hashlib.sha1(string.encode())
@@ -52,35 +54,58 @@ def make_deck(df):
         deck_name
     )
 
-def make_model(df, style: str | Path = '', add_reverse: bool = True):
-    style = Path(style)
-    if style.is_file():
+def make_model(df, style: str | Path = ''):
+
+    def _field(field_name):
+        # in a f-string, a single '{' is escaped by doubling it
+        return (f'{{{{{field_name}}}}}' if field_name in df.columns else '')
+    
+    def _div(field_name):
+        return (f'<div class="{field_name.lower()}">{_field(field_name)}</div>' if field_name in df.columns else '')
+    
+    def _h1(headline):
+        return f'<h1 class="one"><span>{headline}</span></h1>'
+
+    if Path(style).is_file():
         with open(style, 'r') as f:
             style = f.read()
 
     deck_name = df.attrs['name']
-    fields = df.columns
     model_id = generate_unique_id(deck_name)
-    fields = [{'name': field} for field in fields]
+
+    front, back = f'{{{{{df.columns[0]}}}}}', f'{{{{{df.columns[1]}}}}}'
+    br, hr = '<br>', '<hr>'
+
+    qftm_1 = front + _field('Audio') + br + _div('Phonetics')
+    aftm_1 = '{{FrontSide}}' + hr + back + _field('Audio_2') + br + _div('Phonetics_2') + _h1('Extra') + _field('Extra') + hr + _field('Image') + hr + _field('More')
+
+    qftm_2 = back + _field('Audio_2') + br + _div('Phonetics_2')
+    aftm_2 = '{{FrontSide}}' + hr + front + _field('Audio') + br + _div('Phonetics') + hr + _field('Extra') + hr + _field('Image') + hr + _field('More')
+
     templates = [
         {
             'name': 'Card 1',
-            'qfmt': '{{Front}}{{Audio}}',
-            'afmt': '{{FrontSide}} <hr> {{Back}} <hr> {{Extra}} <hr> {{Image}} <hr> {{More}}',
+            'qfmt': qftm_1,
+            'afmt': aftm_1,
         },
         {
             'name': 'Card 2',
-            'qfmt': '{{Back}}{{Audio}}',
-            'afmt': '{{FrontSide}} <hr> {{Front}}{{Audio}} <hr> {{Extra}} <hr> {{Image}} <hr> {{More}}',
+            'qfmt': qftm_2,
+            'afmt': aftm_2,
         },
     ]
 
-    if not add_reverse:
+    if "reverse" not in [x.strip().lower() for x in df.columns]: # only front-to-back cards and no back-to-front cards
         templates = [templates[0]]
+        logger.info("Only front-to-back cards will be created.")
+    else:
+        logger.info("Front-to-back and back-to-front cards will be created.")
+
+    fields = [{'name': field} for field in df.columns]
 
     return genanki.Model(
         model_id,
-        name="Basic (opt. reversed)",
+        name="Basic (opt. reversed)", # TODO
         fields=fields,
         templates=templates,
         css=style
@@ -166,37 +191,3 @@ def read_package(path: pathlib.Path) -> Collection:
         notes.append(note)
     
     return Collection(models, notes)
-
-def main():
-    parser = argparse.ArgumentParser(description='Create Anki decks from CSV or simple Markdown files.')
-    parser.add_argument('file', help='File to import (CSV or Markdown). The file must have a header row that defines the fields for the Anki cards.')
-    parser.add_argument('--deck-name', default=None, help='Optional: Custom name for the Anki deck. If not provided, the deck name is derived from the file name.')
-    parser.add_argument('--package-name', default=None, help='Optional: Custom name for the Anki package file (without .apkg extension). If not provided, the package name is the same as the deck name.')
-
-    args = parser.parse_args()
-
-    file_name = args.file
-    deck_name = args.deck_name if args.deck_name else os.path.splitext(os.path.basename(file_name))[0]
-    package_name = args.package_name if args.package_name else deck_name + '.apkg'
-
-    if not os.path.exists(file_name):
-        print(f"Error: The file {file_name} does not exist.")
-        return
-
-    try:
-        file_data = read_file(file_name)
-    except ValueError as e:
-        print(e)
-        return
-    
-    deck = make_deck(deck_name)
-    model = make_model(deck_name, file_data.columns, "style.css")
-    successful_cards, total_rows = make_note(deck, model, file_data)
-    make_package(deck, media_files=None)
-
-    print(f"Anki package '{package_name}' created successfully.")
-    print(f"Created {successful_cards} cards out of {total_rows} possible lines.")
-    
-
-if __name__ == "__main__":
-    main()
