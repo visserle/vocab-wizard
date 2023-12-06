@@ -18,8 +18,8 @@ import genanki
 
 logger = logging.getLogger(__name__.rsplit(".", maxsplit=1)[-1])
 
-def generate_unique_id(string):
-    """Create a unique ID based on a string."""
+def generate_integer_id(string):
+    """Create a unique integer ID based on a string."""
     hash_object = hashlib.sha1(string.encode())
     return int(hash_object.hexdigest(), 16) % (10 ** 10)
 
@@ -41,7 +41,7 @@ def read_file(df_file: str | Path) -> pd.DataFrame:
             df = pd.read_csv(df_file, sep=';', encoding=encoding)
             if not df.empty:
                 df.attrs['name'] = df_file.name.rsplit(".", maxsplit=1)[0]
-                df = df.replace({r'\n': '<br>', r'\\n': '<br>'}, regex=True)
+                df = df.replace({'\n': '<br>', '\\n': '<br>'}, regex=True)
                 return df.fillna('')
         except UnicodeDecodeError:
             continue
@@ -52,7 +52,7 @@ def read_file(df_file: str | Path) -> pd.DataFrame:
 def make_deck(df, deck_name: str | None = None):
     """Create a deck with the ID based on the name of the DataFrame."""
     df_name = df.attrs['name']
-    deck_id = generate_unique_id(df_name)
+    deck_id = generate_integer_id(df_name)
     if deck_name is None:
         deck_name = df_name
     return genanki.Deck(
@@ -67,7 +67,7 @@ def make_model(df, style: str | Path = ''):
         - The first column is always the front of the card.
         - The second column is always the back of the card.
         - A column named "Reverse" will create a back-to-front card.
-        - A column named "Q&A" will create a Q&A card with Q: and A: prefixes accordingly.
+        - A column named "Q&A" will create a Q&A card in the foreign language with Q: and A: prefixes accordingly.
     """
     def _field(field_name):
         """Return a field with the name of the column if it exists in the DataFrame."""
@@ -94,22 +94,22 @@ def make_model(df, style: str | Path = ''):
 
     # Create a unique ID for the model based on the name of the DataFrame
     df_name = df.attrs['name']
-    model_id = generate_unique_id(df_name)
+    model_id = generate_integer_id(df_name)
 
     # Create the templates for the model
     # Terrible code, but works for now. TODO: improve
     front, back = f'{{{{{df.columns[0]}}}}}', f'{{{{{df.columns[1]}}}}}'
     br, hr = '<br>', '<hr>'
 
-    qftm_1 = _prefix() + front + _field('Audio') + br + _div('Phonetics')
-    aftm_1 = '{{FrontSide}}' + hr + _prefix() + back + _field('Audio_2') + br + _div('Phonetics_2') + _h1('Extra') + _field('Extra') + hr + _field('Image') + hr + _field('More')
+    qftm_1 = _prefix() + front + _field('Sound') + br + _div('Phonetics') + hr + _field('Q&A')
+    aftm_1 = '{{FrontSide}}' + hr + _prefix() + back + _field('Sound_2') + br + _div('Phonetics_2') + _h1('Extra') + _field('Extra') + hr + _field('Image') + hr + _field('More')
     
-    qftm_2 = back + _field('Audio_2') + br + _div('Phonetics_2')
-    aftm_2 = '{{FrontSide}}' + hr + front + _field('Audio') + br + _div('Phonetics') + hr + _field('Extra') + hr + _field('Image') + hr + _field('More')
+    qftm_2 = back + _field('Sound_2') + br + _div('Phonetics_2')
+    aftm_2 = '{{FrontSide}}' + hr + front + _field('Sound') + br + _div('Phonetics') + hr + _field('Extra') + hr + _field('Image') + hr + _field('More')
 
     if "Listen" in df.columns:
-        qftm_1 = _field("Audio")
-        aftm_1 = '{{FrontSide}}' + br + _prefix() + front + br + _div('Phonetics') + hr + _prefix() + back + _field('Audio_2') + br + _div('Phonetics_2') + _h1('Extra') + _field('Extra') + hr + _field('Image') + hr + _field('More')
+        qftm_1 = _field("Sound")
+        aftm_1 = '{{FrontSide}}' + br + _prefix() + front + br + _div('Phonetics') + hr + _prefix() + back + _field('Sound_2') + br + _div('Phonetics_2') + _h1('Extra') + _field('Extra') + hr + _field('Image') + hr + _field('More')
 
     templates = [
         {
@@ -126,10 +126,10 @@ def make_model(df, style: str | Path = ''):
 
     # Account for listening cards, reverse cards and Q&A cards
     if "listen" in [x.strip().lower() for x in df.columns]:
-        if "audio" not in [x.strip().lower() for x in df.columns]:
-            logger.error("Listen column requires Audio column.") # otherwise Anki will find no cards TODO: is this true? whisper integration will show the truth
-            raise ValueError("Listen column requires Audio column.")
-        logger.info("Front of front-to-back cards will be audio only.")
+        if "Sound" not in [x.strip().lower() for x in df.columns]:
+            logger.error("Listen column requires Sound column.") # otherwise Anki will find no cards TODO: is this true? whisper integration will show the truth
+            raise ValueError("Listen column requires Sound column.")
+        logger.info("Front of front-to-back cards will be Sound only.")
     if "reverse" not in [x.strip().lower() for x in df.columns]: # only front-to-back cards and no back-to-front cards
         templates = [templates[0]]
         logger.info("Only front-to-back cards will be created.")
@@ -140,9 +140,10 @@ def make_model(df, style: str | Path = ''):
 
     # Generate model
     fields = [{'name': field} for field in df.columns] # (genanki expects this format)
+    name = "Basic (opt. reversed)" if "Q&A" not in df.columns else "Basic (opt. reversed) Q&A"
     return genanki.Model(
         model_id,
-        name="Basic (opt. reversed)", # TODO: create model name based on df columns card type
+        name=name, # TODO: create model name based on df columns card type
         fields=fields,
         templates=templates,
         css=style
