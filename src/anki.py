@@ -27,27 +27,26 @@ class MyNote(genanki.Note):
     """Generate a unique ID for each note based on the first field."""
     @property
     def guid(self):
-        return genanki.guid_for(self.fields[0].strip(' ".').lower())
+        return genanki.guid_for(self.fields[0].strip(' ".\'').lower())
     
-def read_file(df_file: str | Path) -> pd.DataFrame:
+def read_file(file_path: str | Path) -> pd.DataFrame:
     """
-    Read a file (.txt, .md, .csv, etc.) with pandas, try different encodings if necessary.
-    Returns a pandas DataFrame with the file name as attribute.
+    Reads a file (.txt, .md, .csv, etc.), returns a pandas DataFrame with the file name as attribute.
     """
-    df_file = Path(df_file)
+    file_path = Path(file_path)
     encodings = ['utf-8', 'iso-8859-1', 'windows-1252']
     for encoding in encodings:
         try:
-            df = pd.read_csv(df_file, sep=';', encoding=encoding)
+            df = pd.read_csv(file_path, sep=';', encoding=encoding)
             if not df.empty:
-                df.attrs['name'] = df_file.name.rsplit(".", maxsplit=1)[0]
+                df.attrs['name'] = file_path.name.rsplit(".", maxsplit=1)[0]
                 df = df.replace({'\n': '<br>', '\\n': '<br>'}, regex=True)
                 return df.fillna('')
         except UnicodeDecodeError:
             continue
         except pd.errors.EmptyDataError:
             continue
-    raise ValueError(f"Could not read the file {df_file} with any of the provided encodings.")
+    raise ValueError(f"Could not read the file {file_path} with any of the provided encodings.")
 
 def make_deck(df, deck_name: str | None = None):
     """Create a deck with the ID based on the name of the DataFrame."""
@@ -68,48 +67,101 @@ def make_model(df, style: str | Path = ''):
         - The second column is always the back of the card.
         - A column named "Reverse" will create a back-to-front card.
         - A column named "Q&A" will create a Q&A card in the foreign language with Q: and A: prefixes accordingly.
+
+    
     """
-    def _field(field_name):
-        """Return a field with the name of the column if it exists in the DataFrame."""
-        # in a f-string, a single '{' is escaped by doubling it
-        return (f'{{{{{field_name}}}}}' if field_name in df.columns else '')
-    
-    def _div(field_name):
-        """Return a div with the name of the column if it exists in the DataFrame."""
-        return (f'<div class="{field_name.lower()}">{_field(field_name)}</div>' if field_name in df.columns else '')
-    
-    def _h1(headline):
-        return f'<h1 class="one"><span>{headline}</span></h1>'
-    
-    def _prefix():
-        """Return the prefixes for Q&A note."""
-        if not hasattr(_prefix, "alternator"): # only initialize once
-            _prefix.alternator = itertools.cycle(["Q: ", "A: "])
-        return next(_prefix.alternator) if "Q&A" in df.columns else ''
+
+    # Create a unique ID for the model based on the name of the DataFrame
+    df_name = df.attrs['name']
+    model_id = generate_integer_id(df_name)
 
     # `style` can be a string with css or a path to a css file
     if Path(style).is_file():
         with open(style, 'r') as f:
             style = f.read()
 
-    # Create a unique ID for the model based on the name of the DataFrame
-    df_name = df.attrs['name']
-    model_id = generate_integer_id(df_name)
+    def field(field_name):
+            """Return a field with the name of the column."""
+            # in a f-string, a single '{' is escaped by doubling it
+            return f'{{{{{field_name}}}}}'
 
-    # Create the templates for the model
-    # Terrible code, but works for now. TODO: improve
-    front, back = f'{{{{{df.columns[0]}}}}}', f'{{{{{df.columns[1]}}}}}'
+    def div(field_name):
+        """Return a div with the name of the column."""
+        return f'<div class="{field_name.lower()}">{field(field_name)}</div>'
+
+    def h1(headline):
+        return f'<h1 class="one"><span>{headline}</span></h1>'
+   
+    def QA_prefix():
+        """Return the prefixes for Q&A note."""
+        if not hasattr(QA_prefix, "alternator"): # only initialize once
+            QA_prefix.alternator = itertools.cycle(["Q: ", "A: "])
+        return next(QA_prefix.alternator) if "Q&A" in df.columns else ''
+   
     br, hr = '<br>', '<hr>'
 
-    qftm_1 = _prefix() + front + _field('Sound') + br + _div('Phonetics') + hr + _field('Q&A')
-    aftm_1 = '{{FrontSide}}' + hr + _prefix() + back + _field('Sound_2') + br + _div('Phonetics_2') + _h1('Extra') + _field('Extra') + hr + _field('Image') + hr + _field('More')
+    # vanilla
+    qftm_1 = "".join([
+        field(df.columns[0]), field("Sound"), br, 
+        div("Phonetics"), hr])
+    aftm_1 = "".join([
+        field("FrontSide"),
+        field(df.columns[1]), hr,
+        field("Remark"), hr,
+        field("Image"), hr,
+        field("More")])
     
-    qftm_2 = back + _field('Sound_2') + br + _div('Phonetics_2')
-    aftm_2 = '{{FrontSide}}' + hr + front + _field('Sound') + br + _div('Phonetics') + hr + _field('Extra') + hr + _field('Image') + hr + _field('More')
-
+    # listen
     if "Listen" in df.columns:
-        qftm_1 = _field("Sound")
-        aftm_1 = '{{FrontSide}}' + br + _prefix() + front + br + _div('Phonetics') + hr + _prefix() + back + _field('Sound_2') + br + _div('Phonetics_2') + _h1('Extra') + _field('Extra') + hr + _field('Image') + hr + _field('More')
+        qftm_1 = "".join([
+            field("Sound")])
+        aftm_1 = "".join([
+            field("FrontSide"),
+            field(df.columns[0]), br,
+            div("Phonetics"), hr,
+            field(df.columns[1]), hr,
+            field("Remark"), hr,
+            field("Image"), hr,
+            field("More")])
+        
+    # Q&A
+    if "Q&A" in df.columns:
+        qftm_1 = "".join([
+            QA_prefix(), field(df.columns[0]), field("Sound"), br, 
+            div("Phonetics"), hr, 
+            field("Q&A")])
+        aftm_1 = "".join([
+            field("FrontSide"),
+            QA_prefix(), field(df.columns[1]), field("Sound_Anwser"), br,
+            div("Phonetics_Answer"), hr,
+            field("Remark"), hr,
+            field("Image"), hr,
+            field("More")])
+        
+    # Q&A listen
+    if ("Q&A" in df.columns) and ("Listen" in df.columns):
+        qftm_1 = "".join([
+            QA_prefix(), field("Sound"), hr,
+            field("Q&A")])
+        aftm_1 = "".join([
+            field("FrontSide"),
+            QA_prefix(), field(df.columns[0]), br,
+            div("Phonetics"), hr,
+            field(df.columns[1]), hr,
+            field("Remark"), hr,
+            field("Image"), hr,
+            field("More")])
+        
+    # reverse
+    qftm_2 = "".join([
+        field(df.columns[1]), hr])
+    aftm_2 = "".join([
+        field("FrontSide"),
+        field(df.columns[0]), field("Sound"), br,
+        div("Phonetics"), hr,
+        field("Remark"), hr,
+        field("Image"), hr,
+        field("More")])
 
     templates = [
         {
@@ -125,16 +177,18 @@ def make_model(df, style: str | Path = ''):
     ]
 
     # Account for listening cards, reverse cards and Q&A cards
-    if "listen" in [x.strip().lower() for x in df.columns]:
-        if "Sound" not in [x.strip().lower() for x in df.columns]:
-            logger.error("Listen column requires Sound column.") # otherwise Anki will find no cards TODO: is this true? whisper integration will show the truth
-            raise ValueError("Listen column requires Sound column.")
-        logger.info("Front of front-to-back cards will be Sound only.")
-    if "reverse" not in [x.strip().lower() for x in df.columns]: # only front-to-back cards and no back-to-front cards
+    if "Reverse" not in df.columns: # only front-to-back cards and no back-to-front cards
         templates = [templates[0]]
         logger.info("Only front-to-back cards will be created.")
         if "Q&A" in df.columns:
             logger.info("Cards are in Q&A format.")
+    if "Listen" in df.columns:
+        if "Sound" not in df.columns:
+            logger.error("Listen column requires Sound column.") # otherwise Anki will find no cards TODO: is this true? whisper integration will show the truth
+            raise ValueError("Listen column requires Sound column.")
+        logger.info("Front of front-to-back cards will be Sound only.")
+    if ("Reverse" in df.columns) and ("Q&A" in df.columns):
+        logger.error("Q&A cards cannot be reversed. What would that even mean?")
     else:
         logger.info("Front-to-back and back-to-front cards will be created.")
 
@@ -149,7 +203,8 @@ def make_model(df, style: str | Path = ''):
         css=style
     )
 
-def make_notes(deck, model, df):
+
+def make_notes(df, deck, model):
     """Create a note for each row in the DataFrame."""
 
     header = list(df.columns)
@@ -175,13 +230,13 @@ def make_notes(deck, model, df):
     logger.info(f"Created {successful_notes} notes out of {total_rows} possible lines.")
 
 
-def make_package(deck, media_files: list | None = None, apkg_file: str | Path = ''):
+def make_package(deck, media_paths: list | None = None, apkg_path: str | Path = ''):
     """Create a .apkg file from a deck."""
-    apkg_file = Path(apkg_file)
+    apkg_path = Path(apkg_path)
     my_package = genanki.Package(deck)
-    if media_files:
-        my_package.media_files = media_files
-    my_package.write_to_file(apkg_file)
+    if media_paths:
+        my_package.media_files = media_paths
+    my_package.write_to_file(apkg_path)
 
 
 @dataclasses.dataclass(frozen=True)

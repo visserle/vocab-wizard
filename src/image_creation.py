@@ -1,3 +1,5 @@
+"""Get one image for one query/prompt."""
+
 import logging
 import re
 from pathlib import Path
@@ -60,7 +62,7 @@ def save_image(image, img_path):
 
 
 class BingImageSearch:
-    """Class for fetching image URLs from Bing image search."""
+    """Class for fetching one image URL from Bing image search query."""
 
     def __init__(self, query, language=None, adult='off', img_filter=''):
         self.query = query.strip('"\'') # quotes change search results to literal
