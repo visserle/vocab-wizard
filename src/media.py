@@ -9,7 +9,9 @@ from phonemizer.backend.espeak.wrapper import EspeakWrapper
 from gtts import gTTS
 
 from src.utils import file_str, reference_str
-from src.image_creation import get_image, BingImageSearch
+from src.image_creation import get_image
+from src.bing import BingImageSearch
+from src.openai import dall_e, whisper
 
 logger = logging.getLogger(__name__.rsplit(".", maxsplit=1)[-1])
 
@@ -72,8 +74,8 @@ def add_sounds(df, sound_dir, language, engine="gtts", force_replace=False):
         df["Sound_Answer"] = df.iloc[:,1].apply(lambda x: reference_str(x, "sound"))
 
     # Get sounds
-    iterator = zip(df.iloc[:,0], sound_paths) if "Q&A" not in df.columns else zip(df.iloc[:,0].to_list()+df.iloc[:,1].to_list(), sound_paths)
-    for vocab, sound_path in iterator:
+    iterator = zip(df.iloc[:,0] if "Q&A" not in df.columns else df.iloc[:,0].to_list()+df.iloc[:,1].to_list(), sound_paths)    
+    for idx, (vocab, sound_path) in enumerate(iterator):
         # Check if sound already exists
         if not force_replace:
             if sound_path.exists():
@@ -85,7 +87,10 @@ def add_sounds(df, sound_dir, language, engine="gtts", force_replace=False):
             tts.save(sound_path)
             logger.debug(f"Sound for '{vocab}' saved to {sound_path}")
         if engine == "openai":
-            pass
+            voice = ("alloy", "echo", "fable", "onyx", "nova", "shimmer")[idx % 6]
+            whisper(vocab, sound_path, voice=voice)
+            logger.debug(f"Sound for '{vocab}' saved to {sound_path}")
+
     logger.info(f"Added sounds for {len(df)} vocabularies.")
     return df, sound_paths
 
@@ -110,9 +115,10 @@ def add_images(df, img_dir, language, engine="bing", force_replace=False):
                 continue
         if engine == "bing":
             img_url = BingImageSearch(vocab, language=language).get_image_url()
-        if engine == "dall-e":
-            #img_url = dalle_image(vocab)
-            pass # TODO: implement dalle image search
+        if engine == "dall-e-2":
+            img_url = dall_e(vocab, model="dall-e-2")
+        if engine == "dall-e-3":
+            img_url = dall_e(vocab, model="dall-e-3")
         get_image(img_url, img_path)
         logger.debug(f"Image for '{vocab}' saved to {img_path}")
     logger.info(f"Added images for {len(df)} vocabularies.")
