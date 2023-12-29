@@ -7,7 +7,7 @@ Pros:
 - Create Anki cards from a plain `.txt` file with your vocabulary
 - No need to awkwardly add single notes to Anki, use multiple tools/add-ons, etc.
 - Completely free to use (thanks to Bing Image Search, Google TTS and Phonemizer)
-- Additional OpenAI model support (ChatGPT, Dall-e, TTS)
+- Additional OpenAI model support (ChatGPT, Dall-e, Whisper)
 
 
 Note: At present, this project is unfinished but it does the job (for me). I decided to publish already because why not. More to come.
