@@ -8,7 +8,7 @@ from phonemizer.backend import EspeakBackend
 from phonemizer.backend.espeak.wrapper import EspeakWrapper
 from gtts import gTTS
 
-from src.utils import file_str, reference_str
+from src.hash import file_str, reference_str
 from src.image_creation import get_image
 from src.bing import BingImageSearch
 from src.openai import dall_e, whisper
@@ -35,7 +35,8 @@ def add_phonetics(df, language):
     if platform.system() == 'Darwin':
         EspeakWrapper.set_library(Path("/opt/local/bin/espeak")) # macports version
 
-    # Use specific language codes for espeak, run phonemizer.backend.espeak.espeak.EspeakBackend.supported_languages() to see all supported languages
+    # Use specific language codes for espeak
+    # run phonemizer.backend.espeak.espeak.EspeakBackend.supported_languages() to see all supported languages
     if language == "fr":
         language = "fr-fr"
     if language == "en":
@@ -62,6 +63,9 @@ def add_sounds(df, sound_dir, language, engine="gtts", force_replace=False):
     """
     Add automatically created sounds to a dataframe using the gtts library.
     """
+    if engine not in ("gtts", "whisper"):
+        raise ValueError(f"Unknown engine '{engine}'.")
+
     # Skip function if no sound column
     if not "Sound" in df.columns:
         return df, []
@@ -74,7 +78,7 @@ def add_sounds(df, sound_dir, language, engine="gtts", force_replace=False):
         df["Sound_Answer"] = df.iloc[:,1].apply(lambda x: reference_str(x, "sound"))
 
     # Get sounds
-    iterator = zip(df.iloc[:,0] if "Q&A" not in df.columns else df.iloc[:,0].to_list()+df.iloc[:,1].to_list(), sound_paths)    
+    iterator = zip(df.iloc[:,0] if "Q&A" not in df.columns else df.iloc[:,0].to_list()+df.iloc[:,1].to_list(), sound_paths)
     for idx, (vocab, sound_path) in enumerate(iterator):
         # Check if sound already exists
         if not force_replace:
@@ -86,7 +90,7 @@ def add_sounds(df, sound_dir, language, engine="gtts", force_replace=False):
             tts = gTTS(vocab, lang=language)
             tts.save(sound_path)
             logger.debug(f"Sound for '{vocab}' saved to {sound_path}")
-        if engine == "openai":
+        if engine == "whisper":
             voice = ("alloy", "echo", "fable", "onyx", "nova", "shimmer")[idx % 6]
             whisper(vocab, sound_path, voice=voice)
             logger.debug(f"Sound for '{vocab}' saved to {sound_path}")
@@ -96,6 +100,9 @@ def add_sounds(df, sound_dir, language, engine="gtts", force_replace=False):
 
 
 def add_images(df, img_dir, language, engine="bing", force_replace=False):
+    if engine not in ("bing", "dall-e-2", "dall-e-3"):
+        raise ValueError(f"Unknown engine '{engine}'.")
+
     # Skip function if no image column
     if "Image" not in df.columns:
         return df, []
@@ -105,7 +112,7 @@ def add_images(df, img_dir, language, engine="bing", force_replace=False):
 
     # Add references for Anki to dataframe
     df.Image = df.iloc[:,0].apply(lambda x: reference_str(x, "img"))
-    
+
     # Save images
     for vocab, img_path in zip(df.iloc[:,0], img_paths):
         # Check if image already exists

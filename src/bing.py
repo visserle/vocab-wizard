@@ -96,5 +96,5 @@ class BingImageSearch:
             if self._is_url_valid(url):
                 valid_url = url
                 break
-
+        logger.debug("Image URL for '%s' is %s", self.query, valid_url)
         return valid_url

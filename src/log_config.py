@@ -1,32 +1,51 @@
 import logging
 
-def configure_logging(stream_lvl=logging.INFO, ignore_libs=None):
+def configure_logging(
+        stream_level=logging.INFO, stream=True,
+        file_level=logging.DEBUG, file_path=None,
+        ignore_libs=None):
     """
-    Configures the root logger for logging messages to the console.
+    Configures the root logger for logging messages to the console and optionally to a file.
     Supports ignoring logs from specified libraries.
 
     Parameters:
-    - stream_lvl: The logging level for the stream handler.
+    - stream_level: The logging level for the stream handler.
+    - stream: Whether to enable the stream handler for console logging.
+    - file_level: The logging level for the file handler.
+    - file_path: The path to the debug log file for the file handler, logs are only saved to a file if this is provided.
     - ignore_libs: A list of library names whose logs should be ignored.
     """
-    # Clear any previously added handlers from the root logger
-    logging.getLogger().handlers = []
+    handlers = []
 
     # StreamHandler for console logging
-    stream_formatter = logging.Formatter('[%(asctime)s] [%(levelname)s] [%(name)s] - %(message)s', datefmt='%H:%M:%S')
-    stream_handler = logging.StreamHandler()
-    stream_handler.setLevel(stream_lvl)
-    stream_handler.setFormatter(stream_formatter)
+    if stream:
+        stream_formatter = logging.Formatter('[%(asctime)s] [%(levelname)s] [%(name)s] - %(message)s', datefmt='%H:%M:%S')
+        stream_handler = logging.StreamHandler()
+        stream_handler.setLevel(stream_level)
+        stream_handler.setFormatter(stream_formatter)
+        handlers.append(stream_handler)
+
+    # FileHandler for file logging, added only if file path is provided
+    if file_path:
+        file_formatter = logging.Formatter('[%(asctime)s] [%(levelname)s] [%(name)s] - %(message)s')
+        file_handler = logging.FileHandler(file_path)
+        file_handler.setLevel(file_level)
+        file_handler.setFormatter(file_formatter)
+        handlers.append(file_handler)
 
     # Create filter for ignoring logs from specified libraries
     def create_filter(ignored_libs):
         def ignore_logs(record):
             return not any(record.name.startswith(lib) for lib in ignored_libs)
         return ignore_logs
-    
+
     if ignore_libs:
         ignore_filter = create_filter(ignore_libs)
-        stream_handler.addFilter(ignore_filter)
+        for handler in handlers:
+            handler.addFilter(ignore_filter)
 
-    # Set up the root logger configuration with the StreamHandler
-    logging.basicConfig(level=stream_lvl, handlers=[stream_handler])
+    # Clear any previously added handlers from the root logger
+    logging.getLogger().handlers = []
+
+    # Set up the root logger configuration with the specified handlers
+    logging.basicConfig(level=min(stream_level, logging.DEBUG), handlers=handlers)

@@ -53,6 +53,9 @@ def save_image(image, img_path):
     try:
         image.save(img_path, 'PNG')
         return True
+    except OSError:
+        image = image.convert('RGB').save(img_path, 'PNG')
+        return True
     except Exception as e:
         logger.error(f"Error in saving image to {img_path}: {e}")
         return False

@@ -59,38 +59,32 @@ def make_deck(df, deck_name: str | None = None):
         deck_name
     )
 
-def make_model(df, style: str | Path = ''):
+def field(field_name, key=None, tag=None):
+    """Return a field with the name of the column."""
+    # in a f-string, a single '{' is escaped by doubling it
+    if key == "type":
+        field_str = f'{{{{type:{field_name}}}}}'
+    elif key == 'edit':
+        field_str = f'{{{{edit:{field_name}}}}}'
+    else:
+        field_str = f'{{{{{field_name}}}}}'
+
+    if tag == 'div':
+        field_str = f'<div class="{field_name.lower()}">{field_str}</div>'
+    if tag == 'h1':
+        field_str = f'<h1 class="one"><span>{field_str}</span></h1>'
+
+    return field_str
+
+def make_templates(df):
     """
-    Create a model (card template) TODO with the ID based on the name of the DataFrame.
-    The template is automatically generated based on the columns/fields of the DataFrame, which acts as a config.
+    Templates are automatically generated based on the columns/fields of the DataFrame, which acts as a config.
         - The first column is always the front of the card.
         - The second column is always the back of the card.
         - A column named "Reverse" will create a back-to-front card.
         - A column named "Q&A" will create a Q&A card in the foreign language with Q: and A: prefixes accordingly.
+        - A column named "Listen" will create a card with only a sound file on the front.
     """
-
-    # `style` can be a string with css or a path to a css file
-    if Path(style).is_file():
-        with open(style, 'r') as f:
-            style = f.read()
-
-    def field(field_name, key=None):
-        """Return a field with the name of the column."""
-        # in a f-string, a single '{' is escaped by doubling it
-        if key is None:
-            return f'{{{{{field_name}}}}}'
-        if key == "type":
-            return f'{{{{type:{field_name}}}}}'
-        if key == 'opt':
-            pass # TODO
-
-    def div(field_name):
-        """Return a div with the name of the column."""
-        return f'<div class="{field_name.lower()}">{field(field_name)}</div>'
-
-    def h1(headline):
-        return f'<h1 class="one"><span>{headline}</span></h1>'
-
     br, hr = '<br>', '<hr>'
     Q, A = 'Q: ', 'A: '
 
@@ -98,12 +92,12 @@ def make_model(df, style: str | Path = ''):
     model_name = "Basic Vanilla"
     qftm_1 = "".join([
         field(df.columns[0]), field("Sound"), br,
-        div("Phonetics"), hr
+        field("Phonetics", tag='div'), hr
         ])
     aftm_1 = "".join([
         field("FrontSide"),
         field(df.columns[1]), hr,
-        field("Remark"), hr,
+        field("Remark", key='edit'), hr,
         field("Image"), hr,
         field("More")
         ])
@@ -116,9 +110,9 @@ def make_model(df, style: str | Path = ''):
         aftm_1 = "".join([
             field("FrontSide"),
             field(df.columns[0]), br,
-            div("Phonetics"), hr,
+            field("Phonetics", tag='div'), hr,
             field(df.columns[1]), hr,
-            field("Remark"), hr,
+            field("Remark", key='edit'), hr,
             field("Image"), hr,
             field("More")
             ])
@@ -127,14 +121,14 @@ def make_model(df, style: str | Path = ''):
         model_name = "Basic Q&A"
         qftm_1 = "".join([
             Q, field(df.columns[0]), field("Sound"), br,
-            div("Phonetics"), hr,
+            field("Phonetics", tag='div'), hr,
             field("Q&A"), br
             ])
         aftm_1 = "".join([
             field("FrontSide"),
             A, field(df.columns[1]), field("Sound_Answer"), br,
-            div("Phonetics_Answer"), hr,
-            field("Remark"), hr,
+            field("Phonetics_Answer", tag='div'), hr,
+            field("Remark", key='edit'), hr,
             field("Image"), hr,
             field("More")
             ])
@@ -148,10 +142,10 @@ def make_model(df, style: str | Path = ''):
         aftm_1 = "".join([
             field("FrontSide"),
             field(df.columns[0]), br,
-            div("Phonetics"), hr,
+            field("Phonetics", tag='div'), hr,
             A, field(df.columns[1]), field("Sound_Answer"), br,
-            div("Phonetics_Answer"), hr,
-            field("Remark"), hr,
+            field("Phonetics_Answer", tag='div'), hr,
+            field("Remark", key='edit'), hr,
             field("Image"), hr,
             field("More")
             ])
@@ -167,8 +161,8 @@ def make_model(df, style: str | Path = ''):
         aftm_2 = "".join([
             field("FrontSide"),
             field("Sound"), br,
-            div("Phonetics"), hr,
-            field("Remark"), hr,
+            field("Phonetics", tag='div'), hr,
+            field("Remark", key='edit'), hr,
             field("Image"), hr,
             field("More")
             ])
@@ -191,26 +185,40 @@ def make_model(df, style: str | Path = ''):
         logger.info("Only front-to-back cards will be created.")
         if "Q&A" in df.columns:
             logger.info("Cards are in Q&A format.")
-    if "Listen" in df.columns:
-        if df.Sound[0] == "":
-            logger.error("Listen column obviously requires Sound column.") # otherwise Anki will find no cards TODO: is this true? whisper integration will show the truth
-            raise ValueError("Listen column requires Sound column.")
-        logger.info("Front of front-to-back cards will be Sound only.")
-    if ("Reverse" in df.columns) and ("Q&A" in df.columns):
+    elif ("Reverse" in df.columns) and ("Q&A" in df.columns):
         logger.error("Q&A cards cannot be reversed. What would that even mean?")
     else:
         logger.info("Front-to-back and back-to-front cards will be created.")
 
+    if "Listen" in df.columns:
+        if df.Sound[0] == "":
+            logger.error("Listen column obviously requires Sound column.")
+            raise ValueError("Listen column requires Sound column.")
+        logger.info("Front of front-to-back cards will be Sound only.")
+
+    return model_name, templates
+
+
+def make_model(df, style: str | Path = ''):
+    """
+    Create a model (note type) for the deck.
+    """
+    # style can be a string with css or a path to a css file
+    if Path(style).is_file():
+        with open(style, 'r') as f:
+            style = f.read()
+
+    model_name, templates = make_templates(df)
+
     # Generate model
     field_names = df.columns.tolist()
-    # add additional fields so that we can have consistent models   
+    # add additional fields so that we can have consistent models across different files
     field_names_to_add = ["Remark", "More", "Phonetics", "Sound", "Image"]
     for field_name in field_names_to_add:
         if field_name not in field_names:
             field_names.append(field_name)
     df.attrs['field_names'] = field_names
     fields = [{'name': field} for field in field_names] # (genanki expects this format)
-        
     model_id = generate_integer_id(model_name)
 
     return genanki.Model(
@@ -225,7 +233,6 @@ def make_model(df, style: str | Path = ''):
 def make_notes(df, deck, model):
     """Create a note for each row in the DataFrame."""
 
-    header = list(df.columns)
     header = df.attrs['field_names']
     total_rows = len(df)
     successful_notes = 0
